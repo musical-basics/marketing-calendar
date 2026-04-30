@@ -48,14 +48,17 @@ create index if not exists tasks_campaign_id_idx  on marketing_calendar.tasks(ca
 create index if not exists tasks_due_date_idx     on marketing_calendar.tasks(due_date);
 create index if not exists campaigns_start_idx    on marketing_calendar.campaigns(start_date);
 
--- Allow PostgREST (anon + authenticated roles) to use the schema and tables
-grant usage on schema marketing_calendar to anon, authenticated;
-grant all on all tables in schema marketing_calendar to anon, authenticated;
-grant all on all sequences in schema marketing_calendar to anon, authenticated;
+-- Grants. The app's API routes use the service_role key (server-side),
+-- so service_role must have full access. anon + authenticated grants are
+-- kept in case we ever need them (currently not used since the browser
+-- never talks to Supabase directly — see CLAUDE.md).
+grant usage on schema marketing_calendar to anon, authenticated, service_role;
+grant all on all tables in schema marketing_calendar to anon, authenticated, service_role;
+grant all on all sequences in schema marketing_calendar to anon, authenticated, service_role;
 alter default privileges in schema marketing_calendar
-  grant all on tables to anon, authenticated;
+  grant all on tables to anon, authenticated, service_role;
 alter default privileges in schema marketing_calendar
-  grant all on sequences to anon, authenticated;
+  grant all on sequences to anon, authenticated, service_role;
 
 alter table marketing_calendar.businesses enable row level security;
 alter table marketing_calendar.campaigns  enable row level security;

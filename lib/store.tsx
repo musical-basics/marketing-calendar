@@ -9,15 +9,7 @@ import {
   useState,
 } from "react";
 import { toast } from "sonner";
-import {
-  Business,
-  Campaign,
-  CampaignStatus,
-  Channel,
-  Task,
-  TaskStatus,
-} from "./types";
-import { supabase } from "./supabaseClient";
+import { Business, Campaign, Task } from "./types";
 import { uid } from "./utils";
 
 type State = {
@@ -44,84 +36,25 @@ type StoreApi = State & {
 
 const StoreContext = createContext<StoreApi | null>(null);
 
-// Postgres uses snake_case, the app uses camelCase. Rows go through these
-// adapters at the supabase boundary so the rest of the app never sees the
-// difference.
-
-type CampaignRow = {
-  id: string;
-  name: string;
-  business_ids: string[];
-  start_date: string;
-  end_date: string;
-  goal: string;
-  status: CampaignStatus;
-  notes: string;
-  created_at: string;
-};
-
-type TaskRow = {
-  id: string;
-  campaign_id: string;
-  title: string;
-  due_date: string;
-  channel: Channel;
-  status: TaskStatus;
-  assignee: string;
-  notes: string;
-  created_at: string;
-};
-
-function rowToCampaign(r: CampaignRow): Campaign {
-  return {
-    id: r.id,
-    name: r.name,
-    businessIds: r.business_ids,
-    startDate: r.start_date,
-    endDate: r.end_date,
-    goal: r.goal,
-    status: r.status,
-    notes: r.notes,
-    createdAt: r.created_at,
-  };
-}
-
-function campaignPatchToRow(p: Partial<Campaign>): Partial<CampaignRow> {
-  const out: Partial<CampaignRow> = {};
-  if (p.name !== undefined) out.name = p.name;
-  if (p.businessIds !== undefined) out.business_ids = p.businessIds;
-  if (p.startDate !== undefined) out.start_date = p.startDate;
-  if (p.endDate !== undefined) out.end_date = p.endDate;
-  if (p.goal !== undefined) out.goal = p.goal;
-  if (p.status !== undefined) out.status = p.status;
-  if (p.notes !== undefined) out.notes = p.notes;
-  return out;
-}
-
-function rowToTask(r: TaskRow): Task {
-  return {
-    id: r.id,
-    campaignId: r.campaign_id,
-    title: r.title,
-    dueDate: r.due_date,
-    channel: r.channel,
-    status: r.status,
-    assignee: r.assignee,
-    notes: r.notes,
-    createdAt: r.created_at,
-  };
-}
-
-function taskPatchToRow(p: Partial<Task>): Partial<TaskRow> {
-  const out: Partial<TaskRow> = {};
-  if (p.campaignId !== undefined) out.campaign_id = p.campaignId;
-  if (p.title !== undefined) out.title = p.title;
-  if (p.dueDate !== undefined) out.due_date = p.dueDate;
-  if (p.channel !== undefined) out.channel = p.channel;
-  if (p.status !== undefined) out.status = p.status;
-  if (p.assignee !== undefined) out.assignee = p.assignee;
-  if (p.notes !== undefined) out.notes = p.notes;
-  return out;
+async function api<T>(
+  path: string,
+  init?: { method?: string; body?: unknown }
+): Promise<T> {
+  const res = await fetch(path, {
+    method: init?.method ?? "GET",
+    headers: init?.body ? { "Content-Type": "application/json" } : undefined,
+    body: init?.body ? JSON.stringify(init.body) : undefined,
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try {
+      const j = (await res.json()) as { error?: string };
+      if (j.error) msg = j.error;
+    } catch {}
+    throw new Error(msg);
+  }
+  return (await res.json()) as T;
 }
 
 function reportError(label: string, err: unknown) {
@@ -135,19 +68,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
 
   const refresh = useCallback(async () => {
-    const [b, c, t] = await Promise.all([
-      supabase.from("businesses").select("*").order("name"),
-      supabase.from("campaigns").select("*").order("start_date", { ascending: false }),
-      supabase.from("tasks").select("*").order("due_date"),
-    ]);
-    if (b.error) return reportError("Load businesses", b.error);
-    if (c.error) return reportError("Load campaigns", c.error);
-    if (t.error) return reportError("Load tasks", t.error);
-    setState({
-      businesses: (b.data ?? []) as Business[],
-      campaigns: ((c.data ?? []) as CampaignRow[]).map(rowToCampaign),
-      tasks: ((t.data ?? []) as TaskRow[]).map(rowToTask),
-    });
+    try {
+      const [businesses, campaigns, tasks] = await Promise.all([
+        api<Business[]>("/api/businesses"),
+        api<Campaign[]>("/api/campaigns"),
+        api<Task[]>("/api/tasks"),
+      ]);
+      setState({ businesses, campaigns, tasks });
+    } catch (err) {
+      reportError("Load data", err);
+    }
   }, []);
 
   useEffect(() => {
@@ -161,27 +91,30 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const addCampaign = useCallback(
     async (input: Omit<Campaign, "id" | "createdAt">): Promise<Campaign> => {
-      const id = uid();
-      const row: CampaignRow = {
-        id,
-        name: input.name,
-        business_ids: input.businessIds,
-        start_date: input.startDate,
-        end_date: input.endDate,
-        goal: input.goal,
-        status: input.status,
-        notes: input.notes,
-        created_at: new Date().toISOString(),
+      const optimistic: Campaign = {
+        ...input,
+        id: uid(),
+        createdAt: new Date().toISOString(),
       };
-      const c = rowToCampaign(row);
-      setState((s) => ({ ...s, campaigns: [c, ...s.campaigns] }));
-      const { error } = await supabase.from("campaigns").insert(row);
-      if (error) {
-        setState((s) => ({ ...s, campaigns: s.campaigns.filter((x) => x.id !== id) }));
-        reportError("Add campaign", error);
-        throw error;
+      setState((s) => ({ ...s, campaigns: [optimistic, ...s.campaigns] }));
+      try {
+        const created = await api<Campaign>("/api/campaigns", {
+          method: "POST",
+          body: optimistic,
+        });
+        setState((s) => ({
+          ...s,
+          campaigns: s.campaigns.map((c) => (c.id === optimistic.id ? created : c)),
+        }));
+        return created;
+      } catch (err) {
+        setState((s) => ({
+          ...s,
+          campaigns: s.campaigns.filter((c) => c.id !== optimistic.id),
+        }));
+        reportError("Add campaign", err);
+        throw err;
       }
-      return c;
     },
     []
   );
@@ -195,17 +128,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         campaigns: s.campaigns.map((c) => (c.id === id ? { ...c, ...patch } : c)),
       };
     });
-    const { error } = await supabase
-      .from("campaigns")
-      .update(campaignPatchToRow(patch))
-      .eq("id", id);
-    if (error && prev) {
-      const original = prev;
-      setState((s) => ({
-        ...s,
-        campaigns: s.campaigns.map((c) => (c.id === id ? original : c)),
-      }));
-      reportError("Update campaign", error);
+    try {
+      await api(`/api/campaigns/${id}`, { method: "PATCH", body: patch });
+    } catch (err) {
+      if (prev) {
+        const original = prev;
+        setState((s) => ({
+          ...s,
+          campaigns: s.campaigns.map((c) => (c.id === id ? original : c)),
+        }));
+      }
+      reportError("Update campaign", err);
     }
   }, []);
 
@@ -219,37 +152,41 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         tasks: s.tasks.filter((t) => t.campaignId !== id),
       };
     });
-    const { error } = await supabase.from("campaigns").delete().eq("id", id);
-    if (error && snapshot) {
-      setState(snapshot);
-      reportError("Delete campaign", error);
+    try {
+      await api(`/api/campaigns/${id}`, { method: "DELETE" });
+    } catch (err) {
+      if (snapshot) setState(snapshot);
+      reportError("Delete campaign", err);
     }
   }, []);
 
   // ---- Tasks -------------------------------------------------------------
 
   const addTask = useCallback(async (input: Omit<Task, "id" | "createdAt">): Promise<Task> => {
-    const id = uid();
-    const row: TaskRow = {
-      id,
-      campaign_id: input.campaignId,
-      title: input.title,
-      due_date: input.dueDate,
-      channel: input.channel,
-      status: input.status,
-      assignee: input.assignee,
-      notes: input.notes,
-      created_at: new Date().toISOString(),
+    const optimistic: Task = {
+      ...input,
+      id: uid(),
+      createdAt: new Date().toISOString(),
     };
-    const t = rowToTask(row);
-    setState((s) => ({ ...s, tasks: [...s.tasks, t] }));
-    const { error } = await supabase.from("tasks").insert(row);
-    if (error) {
-      setState((s) => ({ ...s, tasks: s.tasks.filter((x) => x.id !== id) }));
-      reportError("Add task", error);
-      throw error;
+    setState((s) => ({ ...s, tasks: [...s.tasks, optimistic] }));
+    try {
+      const created = await api<Task>("/api/tasks", {
+        method: "POST",
+        body: optimistic,
+      });
+      setState((s) => ({
+        ...s,
+        tasks: s.tasks.map((t) => (t.id === optimistic.id ? created : t)),
+      }));
+      return created;
+    } catch (err) {
+      setState((s) => ({
+        ...s,
+        tasks: s.tasks.filter((t) => t.id !== optimistic.id),
+      }));
+      reportError("Add task", err);
+      throw err;
     }
-    return t;
   }, []);
 
   const updateTask = useCallback(async (id: string, patch: Partial<Task>) => {
@@ -261,17 +198,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)),
       };
     });
-    const { error } = await supabase
-      .from("tasks")
-      .update(taskPatchToRow(patch))
-      .eq("id", id);
-    if (error && prev) {
-      const original = prev;
-      setState((s) => ({
-        ...s,
-        tasks: s.tasks.map((t) => (t.id === id ? original : t)),
-      }));
-      reportError("Update task", error);
+    try {
+      await api(`/api/tasks/${id}`, { method: "PATCH", body: patch });
+    } catch (err) {
+      if (prev) {
+        const original = prev;
+        setState((s) => ({
+          ...s,
+          tasks: s.tasks.map((t) => (t.id === id ? original : t)),
+        }));
+      }
+      reportError("Update task", err);
     }
   }, []);
 
@@ -281,26 +218,40 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       prev = s.tasks.find((t) => t.id === id);
       return { ...s, tasks: s.tasks.filter((t) => t.id !== id) };
     });
-    const { error } = await supabase.from("tasks").delete().eq("id", id);
-    if (error && prev) {
-      const original = prev;
-      setState((s) => ({ ...s, tasks: [...s.tasks, original] }));
-      reportError("Delete task", error);
+    try {
+      await api(`/api/tasks/${id}`, { method: "DELETE" });
+    } catch (err) {
+      if (prev) {
+        const original = prev;
+        setState((s) => ({ ...s, tasks: [...s.tasks, original] }));
+      }
+      reportError("Delete task", err);
     }
   }, []);
 
   // ---- Businesses --------------------------------------------------------
 
   const addBusiness = useCallback(async (name: string, color: string): Promise<Business> => {
-    const b: Business = { id: uid(), name, color };
-    setState((s) => ({ ...s, businesses: [...s.businesses, b] }));
-    const { error } = await supabase.from("businesses").insert(b);
-    if (error) {
-      setState((s) => ({ ...s, businesses: s.businesses.filter((x) => x.id !== b.id) }));
-      reportError("Add business", error);
-      throw error;
+    const optimistic: Business = { id: uid(), name, color };
+    setState((s) => ({ ...s, businesses: [...s.businesses, optimistic] }));
+    try {
+      const created = await api<Business>("/api/businesses", {
+        method: "POST",
+        body: optimistic,
+      });
+      setState((s) => ({
+        ...s,
+        businesses: s.businesses.map((b) => (b.id === optimistic.id ? created : b)),
+      }));
+      return created;
+    } catch (err) {
+      setState((s) => ({
+        ...s,
+        businesses: s.businesses.filter((b) => b.id !== optimistic.id),
+      }));
+      reportError("Add business", err);
+      throw err;
     }
-    return b;
   }, []);
 
   const updateBusiness = useCallback(async (id: string, patch: Partial<Business>) => {
@@ -312,14 +263,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         businesses: s.businesses.map((b) => (b.id === id ? { ...b, ...patch } : b)),
       };
     });
-    const { error } = await supabase.from("businesses").update(patch).eq("id", id);
-    if (error && prev) {
-      const original = prev;
-      setState((s) => ({
-        ...s,
-        businesses: s.businesses.map((b) => (b.id === id ? original : b)),
-      }));
-      reportError("Update business", error);
+    try {
+      await api(`/api/businesses/${id}`, { method: "PATCH", body: patch });
+    } catch (err) {
+      if (prev) {
+        const original = prev;
+        setState((s) => ({
+          ...s,
+          businesses: s.businesses.map((b) => (b.id === id ? original : b)),
+        }));
+      }
+      reportError("Update business", err);
     }
   }, []);
 
@@ -336,10 +290,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         })),
       };
     });
-    const { error } = await supabase.from("businesses").delete().eq("id", id);
-    if (error && snapshot) {
-      setState(snapshot);
-      reportError("Delete business", error);
+    try {
+      await api(`/api/businesses/${id}`, { method: "DELETE" });
+    } catch (err) {
+      if (snapshot) setState(snapshot);
+      reportError("Delete business", err);
     }
   }, []);
 

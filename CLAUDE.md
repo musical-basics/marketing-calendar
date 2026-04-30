@@ -23,9 +23,8 @@ in its own schema prevents naming collisions and makes per-app cleanup
 trivial (`drop schema marketing_calendar cascade`).
 
 The Supabase JS client is configured to default to this schema in
-`lib/supabaseClient.ts` (`db: { schema: SCHEMA }`), so app code does
-`supabase.from("campaigns")` — no need to qualify. If you ever need
-the `auth` schema or `public`, use `supabase.schema("public").from(...)`.
+`lib/supabaseServer.ts` (`db: { schema: SCHEMA }`), so app code does
+`supabaseAdmin.from("campaigns")` — no need to qualify.
 
 **One-time Supabase dashboard step** (already done — re-do if you create
 a new project):
@@ -63,23 +62,51 @@ work on most home networks. Always use the pooler.
 
 ## Environment
 
-Required env vars (set in `.env.local` for dev, Vercel project env for prod):
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`  (publishable key, browser-safe)
-- `SUPABASE_SERVICE_ROLE_KEY`      (secret key, server-only — currently unused but kept for migrations)
+All env vars are server-only (no `NEXT_PUBLIC_*` for Supabase — see
+"Architecture" below). Set in `.env.local` for dev and in the Vercel
+project env for production:
 
-## Privacy model
+- `SUPABASE_URL`                 (Supabase project URL)
+- `SUPABASE_SERVICE_ROLE_KEY`    (secret key — bypasses RLS, used by API routes)
+- `SUPABASE_DB_URL`              (Session Pooler DSN — used only for migrations)
 
-There is no app-level auth. Privacy is enforced at the URL with Vercel
-Password Protection. RLS is enabled on every table but policies are
-permissive (`using (true)`) — anyone past the URL password can read+write.
+## Architecture: server-only data access
 
-If multi-user becomes a real need, swap to Supabase Auth + per-row
-`user_id` and tighten the RLS policies.
+**The browser never talks to Supabase.** There is no `NEXT_PUBLIC_SUPABASE_*`
+env var, no anon key in the JS bundle, no Supabase client in any Client
+Component. The deployed bundle contains zero database credentials.
+
+Data flow:
+1. Browser hits `/api/{businesses,campaigns,tasks}` (our Next.js Route Handlers)
+2. Route handlers use `lib/supabaseServer.ts` (service-role key) to read/write
+3. JSON comes back; the store updates React state
+
+Why this matters: the repo is public and the Vercel URL has no auth gate
+right now. If we shipped the anon key in the bundle, anyone could read or
+overwrite the DB even without visiting the site. With server-only access,
+attackers have to hit our API endpoints — and we can later add auth, rate
+limits, or Vercel Password Protection at that single chokepoint.
+
+`lib/supabaseServer.ts` starts with `import "server-only"` so any
+accidental import from a Client Component fails the build immediately.
 
 ## Store layer
 
-`lib/store.tsx` exposes `useStore()` and is the *only* file that talks
-to Supabase. Keep it that way — pages and components never import the
-Supabase client directly. Mutations update local state optimistically
-and write to Supabase in the background.
+`lib/store.tsx` (Client Component) exposes `useStore()` and is the *only*
+place pages and components get data from. It calls `/api/*` via `fetch`,
+not Supabase. Mutations are optimistic with rollback on error.
+
+If you need to add a new resource: add the table in `db/schema.sql`, add
+a `app/api/<resource>/route.ts` (+ `[id]/route.ts` for item ops), then
+extend the store. Don't add a second Supabase client.
+
+## Privacy model
+
+There is no app-level auth yet. The repo and the Vercel URL are both
+public. The app is "secure by obscurity" — anyone who finds the URL can
+read and write everything via `/api/*`.
+
+To tighten when needed:
+1. Quick: turn on Vercel Password Protection (gates the API too).
+2. Proper: add Supabase Auth (magic link), introduce a `user_id` column,
+   tighten RLS, and have the API routes proxy the user's session.
