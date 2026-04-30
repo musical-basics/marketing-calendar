@@ -66,11 +66,3 @@ export const TASK_STATUSES: { value: TaskStatus; label: string }[] = [
   { value: "done", label: "Done" },
 ];
 
-export const DEFAULT_BUSINESSES: Business[] = [
-  { id: "musical-basics", name: "Musical Basics", color: "#3b82f6" },
-  { id: "dreamplay-pianos", name: "DreamPlay Pianos", color: "#8b5cf6" },
-  { id: "ultimate-pianist", name: "Ultimate Pianist", color: "#ec4899" },
-  { id: "belgium-concert", name: "Belgium concert", color: "#f97316" },
-  { id: "ds-standard", name: "DS Standard / Steinbuhler", color: "#10b981" },
-  { id: "other", name: "Other", color: "#6b7280" },
-];

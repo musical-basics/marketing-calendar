@@ -32,7 +32,7 @@ export function TaskForm({ campaignId, initial, onDone }: Props) {
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [chosenCampaign, setChosenCampaign] = useState(initial?.campaignId ?? campaignId ?? "");
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) {
       toast.error("Title is required");
@@ -42,22 +42,26 @@ export function TaskForm({ campaignId, initial, onDone }: Props) {
       toast.error("Pick a campaign");
       return;
     }
-    if (initial) {
-      updateTask(initial.id, { title, dueDate, channel, status, assignee, notes, campaignId: chosenCampaign });
-      onDone?.({ ...initial, title, dueDate, channel, status, assignee, notes, campaignId: chosenCampaign });
-      toast.success("Task updated");
-    } else {
-      const t = addTask({
-        title,
-        dueDate,
-        channel,
-        status,
-        assignee,
-        notes,
-        campaignId: chosenCampaign,
-      });
-      onDone?.(t);
-      toast.success("Task created");
+    try {
+      if (initial) {
+        await updateTask(initial.id, { title, dueDate, channel, status, assignee, notes, campaignId: chosenCampaign });
+        onDone?.({ ...initial, title, dueDate, channel, status, assignee, notes, campaignId: chosenCampaign });
+        toast.success("Task updated");
+      } else {
+        const t = await addTask({
+          title,
+          dueDate,
+          channel,
+          status,
+          assignee,
+          notes,
+          campaignId: chosenCampaign,
+        });
+        onDone?.(t);
+        toast.success("Task created");
+      }
+    } catch {
+      // store already toasted the error
     }
   }
 

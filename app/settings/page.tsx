@@ -21,7 +21,7 @@ const PRESET_COLORS = [
 ];
 
 export default function SettingsPage() {
-  const { businesses, addBusiness, updateBusiness, deleteBusiness, resetAll, ready } = useStore();
+  const { businesses, addBusiness, updateBusiness, deleteBusiness, ready } = useStore();
   const [newName, setNewName] = useState("");
   const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
 
@@ -41,12 +41,6 @@ export default function SettingsPage() {
     if (!confirm(`Remove "${name}"? It will be unlinked from any campaigns.`)) return;
     deleteBusiness(id);
     toast.success("Business removed");
-  }
-
-  function reset() {
-    if (!confirm("Delete all campaigns, tasks, and businesses? This cannot be undone.")) return;
-    resetAll();
-    toast.success("All data reset");
   }
 
   return (
@@ -103,19 +97,6 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-destructive">Danger zone</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="mb-3 text-sm text-muted-foreground">
-            Data is stored in your browser&apos;s localStorage. Clearing it removes everything.
-          </p>
-          <Button variant="destructive" onClick={reset}>
-            Reset all data
-          </Button>
-        </CardContent>
-      </Card>
     </div>
   );
 }

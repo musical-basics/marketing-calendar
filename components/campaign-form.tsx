@@ -37,7 +37,7 @@ export function CampaignForm({ initial, onDone }: Props) {
     );
   }
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) {
       toast.error("Name is required");
@@ -47,14 +47,18 @@ export function CampaignForm({ initial, onDone }: Props) {
       toast.error("Pick at least one business");
       return;
     }
-    if (initial) {
-      updateCampaign(initial.id, { name, businessIds, startDate, endDate, goal, status, notes });
-      onDone?.({ ...initial, name, businessIds, startDate, endDate, goal, status, notes });
-      toast.success("Campaign updated");
-    } else {
-      const c = addCampaign({ name, businessIds, startDate, endDate, goal, status, notes });
-      onDone?.(c);
-      toast.success("Campaign created");
+    try {
+      if (initial) {
+        await updateCampaign(initial.id, { name, businessIds, startDate, endDate, goal, status, notes });
+        onDone?.({ ...initial, name, businessIds, startDate, endDate, goal, status, notes });
+        toast.success("Campaign updated");
+      } else {
+        const c = await addCampaign({ name, businessIds, startDate, endDate, goal, status, notes });
+        onDone?.(c);
+        toast.success("Campaign created");
+      }
+    } catch {
+      // store already toasted the error
     }
   }
 
