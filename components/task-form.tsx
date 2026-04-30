@@ -12,7 +12,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CHANNELS, Channel, Task, TASK_STATUSES, TaskStatus } from "@/lib/types";
+import {
+  CHANNELS,
+  Channel,
+  PRIORITIES,
+  Priority,
+  Task,
+  TASK_STATUSES,
+  TaskStatus,
+  ASSET_COPY_STATUSES,
+  AssetStatus,
+  CopyStatus,
+} from "@/lib/types";
 import { useStore } from "@/lib/store";
 import { toast } from "sonner";
 
@@ -28,9 +39,15 @@ export function TaskForm({ campaignId, initial, onDone }: Props) {
   const [dueDate, setDueDate] = useState(initial?.dueDate ?? today());
   const [channel, setChannel] = useState<Channel>(initial?.channel ?? "email");
   const [status, setStatus] = useState<TaskStatus>(initial?.status ?? "todo");
+  const [priority, setPriority] = useState<Priority>(initial?.priority ?? "normal");
   const [assignee, setAssignee] = useState(initial?.assignee ?? "");
   const [notes, setNotes] = useState(initial?.notes ?? "");
   const [chosenCampaign, setChosenCampaign] = useState(initial?.campaignId ?? campaignId ?? "");
+  const [assetStatus, setAssetStatus] = useState<AssetStatus>(initial?.assetStatus ?? "na");
+  const [copyStatus, setCopyStatus] = useState<CopyStatus>(initial?.copyStatus ?? "na");
+  const [linkUrl, setLinkUrl] = useState(initial?.linkUrl ?? "");
+  const [publishUrl, setPublishUrl] = useState(initial?.publishUrl ?? "");
+  const [needsApproval, setNeedsApproval] = useState(initial?.needsApproval ?? false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -42,26 +59,33 @@ export function TaskForm({ campaignId, initial, onDone }: Props) {
       toast.error("Pick a campaign");
       return;
     }
+    const payload = {
+      campaignId: chosenCampaign,
+      title,
+      dueDate,
+      channel,
+      status,
+      assignee,
+      notes,
+      priority,
+      assetStatus,
+      copyStatus,
+      linkUrl,
+      publishUrl,
+      needsApproval,
+    };
     try {
       if (initial) {
-        await updateTask(initial.id, { title, dueDate, channel, status, assignee, notes, campaignId: chosenCampaign });
-        onDone?.({ ...initial, title, dueDate, channel, status, assignee, notes, campaignId: chosenCampaign });
+        await updateTask(initial.id, payload);
+        onDone?.({ ...initial, ...payload });
         toast.success("Task updated");
       } else {
-        const t = await addTask({
-          title,
-          dueDate,
-          channel,
-          status,
-          assignee,
-          notes,
-          campaignId: chosenCampaign,
-        });
+        const t = await addTask(payload);
         onDone?.(t);
         toast.success("Task created");
       }
     } catch {
-      // store already toasted the error
+      // store already toasted
     }
   }
 
@@ -96,6 +120,24 @@ export function TaskForm({ campaignId, initial, onDone }: Props) {
           <Input id="t-due" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
         </div>
         <div className="grid gap-2">
+          <Label>Priority</Label>
+          <Select value={priority} onValueChange={(v) => setPriority(v as Priority)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PRIORITIES.map((p) => (
+                <SelectItem key={p.value} value={p.value}>
+                  {p.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-2">
           <Label>Channel</Label>
           <Select value={channel} onValueChange={(v) => setChannel(v as Channel)}>
             <SelectTrigger>
@@ -110,9 +152,6 @@ export function TaskForm({ campaignId, initial, onDone }: Props) {
             </SelectContent>
           </Select>
         </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
         <div className="grid gap-2">
           <Label>Status</Label>
           <Select value={status} onValueChange={(v) => setStatus(v as TaskStatus)}>
@@ -128,11 +167,66 @@ export function TaskForm({ campaignId, initial, onDone }: Props) {
             </SelectContent>
           </Select>
         </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
         <div className="grid gap-2">
-          <Label htmlFor="t-assignee">Assigned to</Label>
-          <Input id="t-assignee" value={assignee} onChange={(e) => setAssignee(e.target.value)} placeholder="Person or tool" />
+          <Label>Asset</Label>
+          <Select value={assetStatus} onValueChange={(v) => setAssetStatus(v as AssetStatus)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ASSET_COPY_STATUSES.map((s) => (
+                <SelectItem key={s.value} value={s.value}>
+                  {s.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-2">
+          <Label>Copy</Label>
+          <Select value={copyStatus} onValueChange={(v) => setCopyStatus(v as CopyStatus)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ASSET_COPY_STATUSES.map((s) => (
+                <SelectItem key={s.value} value={s.value}>
+                  {s.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
+
+      <div className="grid gap-2">
+        <Label htmlFor="t-assignee">Assigned to</Label>
+        <Input id="t-assignee" value={assignee} onChange={(e) => setAssignee(e.target.value)} placeholder="Person or tool" />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-2">
+          <Label htmlFor="t-link">Link URL</Label>
+          <Input id="t-link" type="url" value={linkUrl} onChange={(e) => setLinkUrl(e.target.value)} placeholder="https://…" />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="t-publish">Publish URL</Label>
+          <Input id="t-publish" type="url" value={publishUrl} onChange={(e) => setPublishUrl(e.target.value)} placeholder="https://…" />
+        </div>
+      </div>
+
+      <label className="flex cursor-pointer items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={needsApproval}
+          onChange={(e) => setNeedsApproval(e.target.checked)}
+          className="h-4 w-4 rounded border-input"
+        />
+        Needs approval before publishing
+      </label>
 
       <div className="grid gap-2">
         <Label htmlFor="t-notes">Notes</Label>

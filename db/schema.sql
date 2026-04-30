@@ -48,6 +48,30 @@ create index if not exists tasks_campaign_id_idx  on marketing_calendar.tasks(ca
 create index if not exists tasks_due_date_idx     on marketing_calendar.tasks(due_date);
 create index if not exists campaigns_start_idx    on marketing_calendar.campaigns(start_date);
 
+-- ---- Extended fields (added 2026-04-30) -----------------------------------
+-- All idempotent so the file stays safe to re-apply.
+
+-- Campaign metadata for how Lionel actually runs campaigns.
+-- priority: 'urgent' | 'high' | 'normal' | 'low' (sorted client-side)
+alter table marketing_calendar.campaigns add column if not exists priority         text     not null default 'normal';
+alter table marketing_calendar.campaigns add column if not exists audience         text     not null default '';
+alter table marketing_calendar.campaigns add column if not exists offer            text     not null default '';
+alter table marketing_calendar.campaigns add column if not exists primary_cta_url  text     not null default '';
+alter table marketing_calendar.campaigns add column if not exists success_metric   text     not null default '';
+alter table marketing_calendar.campaigns add column if not exists metric_target    numeric;
+alter table marketing_calendar.campaigns add column if not exists metric_current   numeric;
+alter table marketing_calendar.campaigns add column if not exists next_action      text     not null default '';
+alter table marketing_calendar.campaigns add column if not exists blocked_reason   text     not null default '';
+
+-- Task fields.
+-- asset_status / copy_status: 'na' | 'not_started' | 'in_progress' | 'done'
+alter table marketing_calendar.tasks add column if not exists priority         text     not null default 'normal';
+alter table marketing_calendar.tasks add column if not exists asset_status     text     not null default 'na';
+alter table marketing_calendar.tasks add column if not exists copy_status      text     not null default 'na';
+alter table marketing_calendar.tasks add column if not exists link_url         text     not null default '';
+alter table marketing_calendar.tasks add column if not exists publish_url      text     not null default '';
+alter table marketing_calendar.tasks add column if not exists needs_approval   boolean  not null default false;
+
 -- Grants. The app's API routes use the service_role key (server-side),
 -- so service_role must have full access. anon + authenticated grants are
 -- kept in case we ever need them (currently not used since the browser

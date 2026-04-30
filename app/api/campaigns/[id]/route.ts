@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import { fail, ok, readJson } from "@/lib/api";
-import { Campaign } from "@/lib/types";
+import { Campaign, Priority } from "@/lib/types";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -12,6 +12,15 @@ type CampaignRowPatch = Partial<{
   goal: string;
   status: Campaign["status"];
   notes: string;
+  priority: Priority;
+  audience: string;
+  offer: string;
+  primary_cta_url: string;
+  success_metric: string;
+  metric_target: number | null;
+  metric_current: number | null;
+  next_action: string;
+  blocked_reason: string;
 }>;
 
 export async function PATCH(req: Request, { params }: Ctx) {
@@ -30,14 +39,33 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (patch.goal !== undefined) row.goal = patch.goal;
   if (patch.status !== undefined) row.status = patch.status;
   if (patch.notes !== undefined) row.notes = patch.notes;
-  const { error } = await supabaseAdmin.from("campaigns").update(row).eq("id", id);
+  if (patch.priority !== undefined) row.priority = patch.priority;
+  if (patch.audience !== undefined) row.audience = patch.audience;
+  if (patch.offer !== undefined) row.offer = patch.offer;
+  if (patch.primaryCtaUrl !== undefined) row.primary_cta_url = patch.primaryCtaUrl;
+  if (patch.successMetric !== undefined) row.success_metric = patch.successMetric;
+  if (patch.metricTarget !== undefined) row.metric_target = patch.metricTarget;
+  if (patch.metricCurrent !== undefined) row.metric_current = patch.metricCurrent;
+  if (patch.nextAction !== undefined) row.next_action = patch.nextAction;
+  if (patch.blockedReason !== undefined) row.blocked_reason = patch.blockedReason;
+  const { data, error } = await supabaseAdmin
+    .from("campaigns")
+    .update(row)
+    .eq("id", id)
+    .select("id");
   if (error) return fail(error.message);
+  if (!data || data.length === 0) return fail(`No campaign with id ${id}`, 404);
   return ok({ ok: true });
 }
 
 export async function DELETE(_req: Request, { params }: Ctx) {
   const { id } = await params;
-  const { error } = await supabaseAdmin.from("campaigns").delete().eq("id", id);
+  const { data, error } = await supabaseAdmin
+    .from("campaigns")
+    .delete()
+    .eq("id", id)
+    .select("id");
   if (error) return fail(error.message);
+  if (!data || data.length === 0) return fail(`No campaign with id ${id}`, 404);
   return ok({ ok: true });
 }

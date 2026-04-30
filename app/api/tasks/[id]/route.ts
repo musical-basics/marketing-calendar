@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import { fail, ok, readJson } from "@/lib/api";
-import { Task } from "@/lib/types";
+import { AssetStatus, CopyStatus, Priority, Task } from "@/lib/types";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -12,6 +12,12 @@ type TaskRowPatch = Partial<{
   status: Task["status"];
   assignee: string;
   notes: string;
+  priority: Priority;
+  asset_status: AssetStatus;
+  copy_status: CopyStatus;
+  link_url: string;
+  publish_url: string;
+  needs_approval: boolean;
 }>;
 
 export async function PATCH(req: Request, { params }: Ctx) {
@@ -30,14 +36,30 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (patch.status !== undefined) row.status = patch.status;
   if (patch.assignee !== undefined) row.assignee = patch.assignee;
   if (patch.notes !== undefined) row.notes = patch.notes;
-  const { error } = await supabaseAdmin.from("tasks").update(row).eq("id", id);
+  if (patch.priority !== undefined) row.priority = patch.priority;
+  if (patch.assetStatus !== undefined) row.asset_status = patch.assetStatus;
+  if (patch.copyStatus !== undefined) row.copy_status = patch.copyStatus;
+  if (patch.linkUrl !== undefined) row.link_url = patch.linkUrl;
+  if (patch.publishUrl !== undefined) row.publish_url = patch.publishUrl;
+  if (patch.needsApproval !== undefined) row.needs_approval = patch.needsApproval;
+  const { data, error } = await supabaseAdmin
+    .from("tasks")
+    .update(row)
+    .eq("id", id)
+    .select("id");
   if (error) return fail(error.message);
+  if (!data || data.length === 0) return fail(`No task with id ${id}`, 404);
   return ok({ ok: true });
 }
 
 export async function DELETE(_req: Request, { params }: Ctx) {
   const { id } = await params;
-  const { error } = await supabaseAdmin.from("tasks").delete().eq("id", id);
+  const { data, error } = await supabaseAdmin
+    .from("tasks")
+    .delete()
+    .eq("id", id)
+    .select("id");
   if (error) return fail(error.message);
+  if (!data || data.length === 0) return fail(`No task with id ${id}`, 404);
   return ok({ ok: true });
 }

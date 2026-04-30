@@ -12,7 +12,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CAMPAIGN_STATUSES, Campaign, CampaignStatus } from "@/lib/types";
+import {
+  CAMPAIGN_STATUSES,
+  Campaign,
+  CampaignStatus,
+  PRIORITIES,
+  Priority,
+} from "@/lib/types";
 import { useStore } from "@/lib/store";
 import { toast } from "sonner";
 
@@ -29,6 +35,14 @@ export function CampaignForm({ initial, onDone }: Props) {
   const [endDate, setEndDate] = useState(initial?.endDate ?? today());
   const [goal, setGoal] = useState(initial?.goal ?? "");
   const [status, setStatus] = useState<CampaignStatus>(initial?.status ?? "planned");
+  const [priority, setPriority] = useState<Priority>(initial?.priority ?? "normal");
+  const [audience, setAudience] = useState(initial?.audience ?? "");
+  const [offer, setOffer] = useState(initial?.offer ?? "");
+  const [primaryCtaUrl, setPrimaryCtaUrl] = useState(initial?.primaryCtaUrl ?? "");
+  const [successMetric, setSuccessMetric] = useState(initial?.successMetric ?? "");
+  const [metricTarget, setMetricTarget] = useState<string>(
+    initial?.metricTarget != null ? String(initial.metricTarget) : ""
+  );
   const [notes, setNotes] = useState(initial?.notes ?? "");
 
   function toggleBusiness(id: string) {
@@ -47,18 +61,38 @@ export function CampaignForm({ initial, onDone }: Props) {
       toast.error("Pick at least one business");
       return;
     }
+    const payload = {
+      name,
+      businessIds,
+      startDate,
+      endDate,
+      goal,
+      status,
+      notes,
+      priority,
+      audience,
+      offer,
+      primaryCtaUrl,
+      successMetric,
+      metricTarget: metricTarget.trim() === "" ? null : Number(metricTarget),
+    };
     try {
       if (initial) {
-        await updateCampaign(initial.id, { name, businessIds, startDate, endDate, goal, status, notes });
-        onDone?.({ ...initial, name, businessIds, startDate, endDate, goal, status, notes });
+        await updateCampaign(initial.id, payload);
+        onDone?.({ ...initial, ...payload });
         toast.success("Campaign updated");
       } else {
-        const c = await addCampaign({ name, businessIds, startDate, endDate, goal, status, notes });
+        const c = await addCampaign({
+          ...payload,
+          metricCurrent: null,
+          nextAction: "",
+          blockedReason: "",
+        });
         onDone?.(c);
         toast.success("Campaign created");
       }
     } catch {
-      // store already toasted the error
+      // store already toasted
     }
   }
 
@@ -105,25 +139,80 @@ export function CampaignForm({ initial, onDone }: Props) {
         </div>
       </div>
 
+      <div className="grid grid-cols-2 gap-4">
+        <div className="grid gap-2">
+          <Label>Priority</Label>
+          <Select value={priority} onValueChange={(v) => setPriority(v as Priority)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PRIORITIES.map((p) => (
+                <SelectItem key={p.value} value={p.value}>
+                  {p.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-2">
+          <Label>Status</Label>
+          <Select value={status} onValueChange={(v) => setStatus(v as CampaignStatus)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CAMPAIGN_STATUSES.map((s) => (
+                <SelectItem key={s.value} value={s.value}>
+                  {s.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
       <div className="grid gap-2">
         <Label htmlFor="c-goal">Goal</Label>
         <Input id="c-goal" value={goal} onChange={(e) => setGoal(e.target.value)} placeholder="What does success look like?" />
       </div>
 
       <div className="grid gap-2">
-        <Label>Status</Label>
-        <Select value={status} onValueChange={(v) => setStatus(v as CampaignStatus)}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {CAMPAIGN_STATUSES.map((s) => (
-              <SelectItem key={s.value} value={s.value}>
-                {s.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Label htmlFor="c-audience">Audience</Label>
+        <Input id="c-audience" value={audience} onChange={(e) => setAudience(e.target.value)} placeholder="Who are we targeting?" />
+      </div>
+
+      <div className="grid gap-2">
+        <Label htmlFor="c-offer">Offer</Label>
+        <Input id="c-offer" value={offer} onChange={(e) => setOffer(e.target.value)} placeholder="What are we promoting?" />
+      </div>
+
+      <div className="grid gap-2">
+        <Label htmlFor="c-cta">Primary CTA URL</Label>
+        <Input id="c-cta" type="url" value={primaryCtaUrl} onChange={(e) => setPrimaryCtaUrl(e.target.value)} placeholder="https://…" />
+      </div>
+
+      <div className="grid grid-cols-[2fr_1fr] gap-4">
+        <div className="grid gap-2">
+          <Label htmlFor="c-metric">Success metric</Label>
+          <Input
+            id="c-metric"
+            value={successMetric}
+            onChange={(e) => setSuccessMetric(e.target.value)}
+            placeholder="Preorders, signups, ticket sales…"
+          />
+        </div>
+        <div className="grid gap-2">
+          <Label htmlFor="c-metric-target">Target</Label>
+          <Input
+            id="c-metric-target"
+            type="number"
+            inputMode="numeric"
+            value={metricTarget}
+            onChange={(e) => setMetricTarget(e.target.value)}
+            placeholder="100"
+          />
+        </div>
       </div>
 
       <div className="grid gap-2">

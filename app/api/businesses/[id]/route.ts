@@ -19,15 +19,20 @@ export async function PATCH(req: Request, { params }: Ctx) {
     .from("businesses")
     .update(allowed)
     .eq("id", id)
-    .select()
-    .single();
+    .select();
   if (error) return fail(error.message);
-  return ok(data);
+  if (!data || data.length === 0) return fail(`No business with id ${id}`, 404);
+  return ok(data[0]);
 }
 
 export async function DELETE(_req: Request, { params }: Ctx) {
   const { id } = await params;
-  const { error } = await supabaseAdmin.from("businesses").delete().eq("id", id);
+  const { data, error } = await supabaseAdmin
+    .from("businesses")
+    .delete()
+    .eq("id", id)
+    .select("id");
   if (error) return fail(error.message);
+  if (!data || data.length === 0) return fail(`No business with id ${id}`, 404);
   return ok({ ok: true });
 }

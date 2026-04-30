@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import { fail, ok, readJson } from "@/lib/api";
-import { Campaign } from "@/lib/types";
+import { Campaign, Priority } from "@/lib/types";
 
 type CampaignRow = {
   id: string;
@@ -12,6 +12,15 @@ type CampaignRow = {
   status: Campaign["status"];
   notes: string;
   created_at: string;
+  priority: Priority;
+  audience: string;
+  offer: string;
+  primary_cta_url: string;
+  success_metric: string;
+  metric_target: number | null;
+  metric_current: number | null;
+  next_action: string;
+  blocked_reason: string;
 };
 
 function rowToCampaign(r: CampaignRow): Campaign {
@@ -25,6 +34,15 @@ function rowToCampaign(r: CampaignRow): Campaign {
     status: r.status,
     notes: r.notes,
     createdAt: r.created_at,
+    priority: r.priority,
+    audience: r.audience,
+    offer: r.offer,
+    primaryCtaUrl: r.primary_cta_url,
+    successMetric: r.success_metric,
+    metricTarget: r.metric_target,
+    metricCurrent: r.metric_current,
+    nextAction: r.next_action,
+    blockedReason: r.blocked_reason,
   };
 }
 
@@ -57,6 +75,15 @@ export async function POST(req: Request) {
     status: body.status ?? "planned",
     notes: body.notes ?? "",
     created_at: body.createdAt ?? new Date().toISOString(),
+    priority: body.priority ?? "normal",
+    audience: body.audience ?? "",
+    offer: body.offer ?? "",
+    primary_cta_url: body.primaryCtaUrl ?? "",
+    success_metric: body.successMetric ?? "",
+    metric_target: body.metricTarget ?? null,
+    metric_current: body.metricCurrent ?? null,
+    next_action: body.nextAction ?? "",
+    blocked_reason: body.blockedReason ?? "",
   };
   const { data, error } = await supabaseAdmin
     .from("campaigns")

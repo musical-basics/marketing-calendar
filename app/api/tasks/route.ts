@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabaseServer";
 import { fail, ok, readJson } from "@/lib/api";
-import { Task } from "@/lib/types";
+import { AssetStatus, CopyStatus, Priority, Task } from "@/lib/types";
 
 type TaskRow = {
   id: string;
@@ -12,6 +12,12 @@ type TaskRow = {
   assignee: string;
   notes: string;
   created_at: string;
+  priority: Priority;
+  asset_status: AssetStatus;
+  copy_status: CopyStatus;
+  link_url: string;
+  publish_url: string;
+  needs_approval: boolean;
 };
 
 function rowToTask(r: TaskRow): Task {
@@ -25,6 +31,12 @@ function rowToTask(r: TaskRow): Task {
     assignee: r.assignee,
     notes: r.notes,
     createdAt: r.created_at,
+    priority: r.priority,
+    assetStatus: r.asset_status,
+    copyStatus: r.copy_status,
+    linkUrl: r.link_url,
+    publishUrl: r.publish_url,
+    needsApproval: r.needs_approval,
   };
 }
 
@@ -57,6 +69,12 @@ export async function POST(req: Request) {
     assignee: body.assignee ?? "",
     notes: body.notes ?? "",
     created_at: body.createdAt ?? new Date().toISOString(),
+    priority: body.priority ?? "normal",
+    asset_status: body.assetStatus ?? "na",
+    copy_status: body.copyStatus ?? "na",
+    link_url: body.linkUrl ?? "",
+    publish_url: body.publishUrl ?? "",
+    needs_approval: body.needsApproval ?? false,
   };
   const { data, error } = await supabaseAdmin
     .from("tasks")

@@ -4,6 +4,8 @@ export type Business = {
   color: string;
 };
 
+export type Priority = "urgent" | "high" | "normal" | "low";
+
 export type CampaignStatus = "planned" | "active" | "paused" | "done";
 
 export type Campaign = {
@@ -16,6 +18,16 @@ export type Campaign = {
   status: CampaignStatus;
   notes: string;
   createdAt: string;
+  // Extended fields
+  priority: Priority;
+  audience: string;
+  offer: string;
+  primaryCtaUrl: string;
+  successMetric: string;
+  metricTarget: number | null;
+  metricCurrent: number | null;
+  nextAction: string;
+  blockedReason: string;
 };
 
 export type Channel =
@@ -30,6 +42,9 @@ export type Channel =
 
 export type TaskStatus = "todo" | "in_progress" | "done";
 
+export type AssetStatus = "na" | "not_started" | "in_progress" | "done";
+export type CopyStatus = "na" | "not_started" | "in_progress" | "done";
+
 export type Task = {
   id: string;
   campaignId: string;
@@ -40,6 +55,13 @@ export type Task = {
   assignee: string;
   notes: string;
   createdAt: string;
+  // Extended fields
+  priority: Priority;
+  assetStatus: AssetStatus;
+  copyStatus: CopyStatus;
+  linkUrl: string;
+  publishUrl: string;
+  needsApproval: boolean;
 };
 
 export const CHANNELS: { value: Channel; label: string }[] = [
@@ -66,3 +88,23 @@ export const TASK_STATUSES: { value: TaskStatus; label: string }[] = [
   { value: "done", label: "Done" },
 ];
 
+export const PRIORITIES: { value: Priority; label: string; weight: number }[] = [
+  { value: "urgent", label: "Urgent", weight: 3 },
+  { value: "high", label: "High", weight: 2 },
+  { value: "normal", label: "Normal", weight: 1 },
+  { value: "low", label: "Low", weight: 0 },
+];
+
+export const PRIORITY_WEIGHT: Record<Priority, number> = {
+  urgent: 3,
+  high: 2,
+  normal: 1,
+  low: 0,
+};
+
+export const ASSET_COPY_STATUSES: { value: AssetStatus; label: string }[] = [
+  { value: "na", label: "N/A" },
+  { value: "not_started", label: "Not started" },
+  { value: "in_progress", label: "In progress" },
+  { value: "done", label: "Done" },
+];
